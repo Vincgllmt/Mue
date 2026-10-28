@@ -198,6 +198,7 @@ export interface Suggestion {
   after: string;
   question: string;
   explanation: string;
+  response: string;
   state: "pending" | "accepted" | "rejected" | "edited";
   applied_version: number | null;
 }
@@ -210,4 +211,14 @@ export interface Audit {
   created_at: string;
   suggestions: Suggestion[];
   job: JobRef | null;
+  revision: AuditRevision | null;
+  revision_job: JobRef | null;
+  revision_pdf_url: string | null;
+}
+
+export interface AuditRevision {
+  profil: ProfileData;
+  changements: string[];
+  warnings: GuardWarning[];
+  applied_version: number | null;
 }

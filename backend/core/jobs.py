@@ -4,11 +4,13 @@ import logging
 import time
 from pathlib import Path
 
-from . import claude_client, documents, profile_service
+from . import claude_client, documents, guard, pdf, profile_service
 from .claude_client import ClaudeError
 from .models import Application, Audit, GeneratedDoc, Job, Offer, Suggestion
 from .pdf import RenderError
-from .schemas import AuditResult, CvAdapte, CvDocument, LetterDocument, LettreGeneree, OfferAnalysis, ProfileData
+from .schemas import (
+    AuditResult, CvAdapte, CvDocument, LetterDocument, LettreGeneree, OfferAnalysis, ProfileData, RevisionResult,
+)
 from .text_extract import UnsupportedFile, extract_text
 
 logger = logging.getLogger(__name__)
@@ -160,12 +162,65 @@ def run_audit(job: Job):
     return {"audit_id": audit.id}, meta
 
 
+# --- F5 bis. CV révisé avec les réponses à l'audit ---------------------------------------------
+
+DECISIONS = {"pending": "en_attente", "accepted": "acceptee", "edited": "acceptee", "rejected": "rejetee"}
+
+
+def _remark(s: Suggestion, source: str) -> dict:
+    decision = DECISIONS[s.state]
+    if source == "profile" and s.applied_version_id:
+        decision = "deja_appliquee"
+    return {
+        "type": s.kind,
+        "axe": s.axis,
+        "cible": s.target_path,
+        "texte_concerne": s.before,
+        "proposition": s.after if s.kind == "suggestion" else "",
+        "remarque": s.question if s.kind == "question" else s.explanation,
+        "decision": decision,
+        "reponse": s.response,
+    }
+
+
+def run_revise_cv(job: Job):
+    audit = Audit.objects.get(pk=job.payload["audit_id"])
+    remarks = [_remark(s, audit.source) for s in audit.suggestions.order_by("id")]
+    answers = "\n".join(s.response for s in audit.suggestions.all() if s.response)
+    if audit.source == "file":
+        source_text = _read_cv(job.payload["file_path"])
+        context = {"source": "cv_importe", "contenu": source_text}
+    else:
+        reference = _require_profile()
+        context = {"source": "profil", "contenu": reference.model_dump()}
+    context |= {"poste_cible": audit.target_role or "Aucun poste cible précisé.", "remarques": remarks}
+
+    result, meta = claude_client.run("revise_cv", context, RevisionResult)
+    cv = documents.profile_to_cv(result.profil)
+    if audit.source == "file":
+        warnings = guard.check_against_text(result.profil, f"{source_text}\n{answers}")
+    else:
+        warnings = guard.check_cv(cv, reference, extra_text=answers)
+
+    path = pdf.render_to_file("cv", cv.model_dump(), f"audit_{audit.id}_revise.pdf")
+    audit.revision = {
+        "profil": result.profil.model_dump(),
+        "changements": result.changements,
+        "warnings": warnings,
+        "applied_version": None,
+    }
+    audit.revision_pdf_path = str(path)
+    audit.save()
+    return {"audit_id": audit.id}, meta
+
+
 RUNNERS = {
     "extract_profile": run_extract_profile,
     "analyze_offer": run_analyze_offer,
     "generate_cv": run_generate_cv,
     "generate_letter": run_generate_letter,
     "audit": run_audit,
+    "revise_cv": run_revise_cv,
 }
 
 EXPECTED_ERRORS = (ClaudeError, JobError, RenderError, UnsupportedFile)

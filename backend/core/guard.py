@@ -74,9 +74,10 @@ def _check_numbers(fields: list[tuple[str, str]], allowed: set[str]) -> list[dic
     return out
 
 
-def check_cv(cv: CvDocument, profile: ProfileData) -> list[dict]:
+def check_cv(cv: CvDocument, profile: ProfileData, extra_text: str = "") -> list[dict]:
+    """`extra_text` : faits fournis hors profil (ex. réponses à un audit), tolérés comme le profil."""
     warnings: list[dict] = []
-    corpus = normalize(" ".join(_strings(profile.model_dump())))
+    corpus = normalize(" ".join([*_strings(profile.model_dump()), extra_text]))
 
     exps = {normalize(e.entreprise): e for e in profile.experiences}
     for i, e in enumerate(cv.experiences):
@@ -117,13 +118,28 @@ def check_cv(cv: CvDocument, profile: ProfileData) -> list[dict]:
         text_fields += [(f"experiences.{i}.realisations.{j}", r) for j, r in enumerate(e.realisations)]
     for i, p in enumerate(cv.projets):
         text_fields.append((f"projets.{i}.description", p.description))
-    warnings += _check_numbers(text_fields, profile_numbers(profile))
+    warnings += _check_numbers(text_fields, profile_numbers(profile, extra_text))
     return warnings
 
 
 def check_letter(letter: LetterDocument, profile: ProfileData, offer_text: str = "") -> list[dict]:
     fields = [("objet", letter.objet)] + [(f"paragraphes.{i}", p) for i, p in enumerate(letter.paragraphes)]
     return _check_numbers(fields, profile_numbers(profile, offer_text))
+
+
+def check_against_text(profile: ProfileData, source_text: str) -> list[dict]:
+    """Profil produit depuis un texte brut (CV importé) : seuls les chiffres sont contrôlables."""
+    allowed = _numbers(source_text)
+    data = profile.model_dump()
+    fields = [("titre", profile.titre), ("accroche", profile.accroche)]
+    for i, e in enumerate(data["experiences"]):
+        fields += [(f"experiences.{i}.realisations.{j}", r) for j, r in enumerate(e["realisations"])]
+        fields += [(f"experiences.{i}.contexte", e["contexte"]), (f"experiences.{i}.date_debut", e["date_debut"]),
+                   (f"experiences.{i}.date_fin", e["date_fin"])]
+    for i, p in enumerate(data["projets"]):
+        fields += [(f"projets.{i}.description", p["description"])]
+        fields += [(f"projets.{i}.realisations.{j}", r) for j, r in enumerate(p["realisations"])]
+    return _check_numbers(fields, allowed)
 
 
 def check_text(champ: str, text: str, profile: ProfileData, offer_text: str = "") -> list[dict]:

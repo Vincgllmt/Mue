@@ -11,7 +11,7 @@ from core import claude_client
 from core.claude_client import ClaudeError
 from core.models import Profile
 
-from .fixtures import ANALYSIS, AUDIT, CV, LETTER, OFFER_TEXT, PROFILE
+from .fixtures import ANALYSIS, AUDIT, CV, LETTER, OFFER_TEXT, PROFILE, REVISION
 
 pytestmark = pytest.mark.django_db
 
@@ -21,6 +21,7 @@ RESPONSES = {
     "generate_letter": LETTER,
     "audit_cv": AUDIT,
     "extract_profile": PROFILE,
+    "revise_cv": REVISION,
 }
 
 
@@ -39,6 +40,7 @@ def fake_claude(monkeypatch):
         "lettre de motivation française": "generate_letter",
         "Tu audites un CV": "audit_cv",
         "texte brut d'un CV": "extract_profile",
+        "Tu révises un CV": "revise_cv",
     }
 
     def fake(prompt, timeout=None):
@@ -185,6 +187,35 @@ def test_audit_accept_reject_edit(api, with_profile, fake_claude):
     r = api.patch(f"/api/suggestions/{global_remark['id']}", {"state": "rejected"}, format="json")
     assert r.data["state"] == "rejected" and r.data["applied_version"] is None
     assert Profile.objects.count() == 3
+
+
+def test_audit_responses_and_revised_cv(api, with_profile, fake_claude):
+    r = api.post("/api/audits", {"target_role": ""}, format="json")
+    audit_id = r.data["audit"]["id"]
+    question = next(s for s in api.get(f"/api/audits/{audit_id}").data["suggestions"] if s["kind"] == "question")
+
+    # Répondre sans changer l'état de la remarque.
+    r = api.patch(f"/api/suggestions/{question['id']}", {"response": " 40 tickets par mois "}, format="json")
+    assert r.status_code == 200 and r.data["response"] == "40 tickets par mois" and r.data["state"] == "pending"
+
+    r = api.post(f"/api/audits/{audit_id}/revise")
+    assert r.status_code == 202
+    job = api.get(f"/api/jobs/{r.data['job_id']}").data
+    assert job["status"] == "done", job
+
+    audit = api.get(f"/api/audits/{audit_id}").data
+    assert audit["revision_job"]["status"] == "done"
+    assert audit["revision"]["changements"] and audit["revision"]["applied_version"] is None
+    # Le 40 vient de la réponse : toléré ; le 5 n'a aucune source.
+    flagged = [w["message"] for w in audit["revision"]["warnings"]]
+    assert any("« 5 »" in m for m in flagged) and not any("« 40 »" in m for m in flagged)
+    pdf = api.get(audit["revision_pdf_url"])
+    assert pdf.status_code == 200 and b"".join(pdf.streaming_content).startswith(b"%PDF")
+    assert Profile.objects.count() == 1  # rien n'est appliqué sans validation
+
+    r = api.post(f"/api/audits/{audit_id}/revision/apply")
+    assert r.data["revision"]["applied_version"] == 2
+    assert Profile.objects.get(version=2).data["experiences"][0]["realisations"][1] == "Traité 40 tickets de TMA par mois"
 
 
 def test_import_cv_returns_draft(api, fake_claude, tmp_path):

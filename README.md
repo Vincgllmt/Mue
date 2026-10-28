@@ -61,4 +61,7 @@ logs/claude/              prompt, réponse, durée et coût de chaque appel (non
   Il est relancé à chaque édition manuelle.
 - **Audit** : une suggestion acceptée ne s'applique qu'à un champ texte du profil et seulement s'il y a une réécriture ;
   le reste est traité comme une remarque globale.
+- **CV révisé** : chaque remarque de l'audit accepte une réponse libre (chiffre réel, contexte, raison d'un refus).
+  « Générer le CV révisé » renvoie le profil complet réécrit avec ces réponses, son PDF et le garde-fou ; il n'est
+  appliqué au profil maître (nouvelle version) qu'après validation.
 - **Erreurs Claude** (timeout, limite d'usage, token expiré) : message explicite et bouton « Relancer ».

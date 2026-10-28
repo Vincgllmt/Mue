@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from rest_framework import serializers
 
 from .documents import letter_text
@@ -66,18 +68,34 @@ class SuggestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Suggestion
         fields = ["id", "audit", "kind", "axis", "severity", "target_path", "before", "after", "question",
-                  "explanation", "state", "applied_version"]
+                  "explanation", "response", "state", "applied_version"]
 
 
 class AuditSerializer(serializers.ModelSerializer):
     suggestions = SuggestionSerializer(many=True, read_only=True)
     profile_version = serializers.SlugRelatedField(slug_field="version", read_only=True)
     job = serializers.SerializerMethodField()
+    revision_job = serializers.SerializerMethodField()
+    revision_pdf_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Audit
-        fields = ["id", "profile_version", "target_role", "source", "created_at", "suggestions", "job"]
+        fields = ["id", "profile_version", "target_role", "source", "created_at", "suggestions", "job",
+                  "revision", "revision_job", "revision_pdf_url"]
+
+    @staticmethod
+    def _job(kind, audit):
+        job = Job.objects.filter(kind=kind, payload__audit_id=audit.id).order_by("-id").first()
+        return {"id": job.id, "status": job.status, "error": job.error} if job else None
 
     def get_job(self, audit):
-        job = Job.objects.filter(kind="audit", payload__audit_id=audit.id).order_by("-id").first()
-        return {"id": job.id, "status": job.status, "error": job.error} if job else None
+        return self._job("audit", audit)
+
+    def get_revision_job(self, audit):
+        return self._job("revise_cv", audit)
+
+    def get_revision_pdf_url(self, audit):
+        path = Path(audit.revision_pdf_path) if audit.revision_pdf_path else None
+        if not path or not path.exists():
+            return None
+        return f"/api/audits/{audit.id}/revision/pdf?v={int(path.stat().st_mtime)}"

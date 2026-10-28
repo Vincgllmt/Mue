@@ -91,3 +91,18 @@ AUDIT = {
 }
 
 OFFER_TEXT = "Acme recrute un développeur Python / Django confirmé en CDI à Nantes. " * 4
+
+REVISION = {
+    "profil": {
+        **PROFILE,
+        "experiences": [
+            {**PROFILE["experiences"][0], "realisations": [
+                "Conçu l'API de facturation utilisée par 3 applications",
+                "Traité 40 tickets de TMA par mois",
+                "Réduit le délai de résolution de 5 jours",
+            ]},
+            PROFILE["experiences"][1],
+        ],
+    },
+    "changements": ["Exemple SAS, puce 2 : ajout du volume de tickets."],
+}

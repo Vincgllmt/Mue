@@ -4,7 +4,7 @@ import { api } from "../api";
 import { Diff } from "../components/Diff";
 import { Field } from "../components/forms";
 import { JobStatus, useJob } from "../components/job";
-import { formatDateTime } from "../components/ui";
+import { formatDateTime, Warnings } from "../components/ui";
 import type { Audit, Suggestion } from "../types";
 
 const AXES: Record<string, string> = {
@@ -94,19 +94,37 @@ function AuditLauncher() {
 function AuditDetail({ id }: { id: number }) {
   const [audit, setAudit] = useState<Audit | null>(null);
   const [error, setError] = useState("");
+  // Réponses en cours de saisie, envoyées à la sortie du champ ou avant la révision.
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
   const job = useJob(() => load());
+  const revisionJob = useJob(() => load());
 
   const load = () => api.audit(id).then((a) => { setAudit(a); return a; }).catch((e) => { setError(e.message); return null; });
   useEffect(() => {
     load().then((a) => {
       if (a?.job && a.job.status !== "done") job.follow(a.job.id);
+      if (a?.revision_job && a.revision_job.status !== "done") revisionJob.follow(a.revision_job.id);
     });
   }, [id]);
 
   if (error) return <div className="alert error">{error}</div>;
   if (!audit) return <p className="muted">Chargement…</p>;
 
-  const update = (s: Suggestion) => setAudit({ ...audit, suggestions: audit.suggestions.map((x) => (x.id === s.id ? s : x)) });
+  const update = (s: Suggestion) => setAudit((a) => a && { ...a, suggestions: a.suggestions.map((x) => (x.id === s.id ? s : x)) });
+  const unsaved = audit.suggestions.filter((s) => s.id in drafts && drafts[s.id].trim() !== s.response);
+  const saveResponse = async (s: Suggestion) => {
+    update(await api.respondSuggestion(s.id, drafts[s.id]));
+    setDrafts(({ [s.id]: _, ...rest }) => rest);
+  };
+  const responseProps = (s: Suggestion): ResponseProps => ({
+    value: drafts[s.id] ?? s.response,
+    onChange: (v) => setDrafts((d) => ({ ...d, [s.id]: v })),
+    onSave: () => (unsaved.some((u) => u.id === s.id) ? saveResponse(s) : Promise.resolve()),
+  });
+  const revise = () => revisionJob.start(async () => {
+    await Promise.all(unsaved.map(saveResponse));
+    return api.reviseAudit(audit.id);
+  });
   const questions = audit.suggestions.filter((s) => s.kind === "question");
   const suggestions = audit.suggestions.filter((s) => s.kind === "suggestion");
   const byAxis = Object.keys(AXES)
@@ -131,16 +149,24 @@ function AuditDetail({ id }: { id: number }) {
         <>
           <h2>Questions de complétion</h2>
           <p className="muted">L'IA ne devine pas les chiffres : réponds en réécrivant la puce avec le résultat réel.</p>
-          {questions.map((q) => <QuestionCard key={q.id} q={q} canApply={audit.source === "profile"} onChange={update} />)}
+          {questions.map((q) => (
+            <QuestionCard key={q.id} q={q} canApply={audit.source === "profile"} onChange={update} response={responseProps(q)} />
+          ))}
         </>
       )}
 
       {byAxis.map(({ axis, items }) => (
         <div key={axis}>
           <h2>{AXES[axis]} <span className="count">{items.length}</span></h2>
-          {items.map((s) => <SuggestionCard key={s.id} s={s} canApply={audit.source === "profile"} onChange={update} />)}
+          {items.map((s) => (
+            <SuggestionCard key={s.id} s={s} canApply={audit.source === "profile"} onChange={update} response={responseProps(s)} />
+          ))}
         </div>
       ))}
+
+      {audit.suggestions.length > 0 && (
+        <Revision audit={audit} job={revisionJob} onRevise={revise} onApplied={setAudit} />
+      )}
     </section>
   );
 }
@@ -162,6 +188,21 @@ function useSuggestionAction(s: Suggestion, onChange: (s: Suggestion) => void) {
   return { act, error, busy };
 }
 
+type ResponseProps = { value: string; onChange: (v: string) => void; onSave: () => Promise<unknown> };
+
+function ResponseBox({ value, onChange, onSave, label }: ResponseProps & { label: string }) {
+  const [error, setError] = useState("");
+  const save = () => onSave().then(() => setError(""), (e) => setError((e as Error).message));
+  return (
+    <label className="field response">
+      <span className="field-label">{label}</span>
+      <textarea rows={2} value={value} onChange={(e) => onChange(e.target.value)} onBlur={save}
+        placeholder="Précision, chiffre réel, contexte, raison du refus… (pris en compte par le CV révisé)" />
+      {error && <span className="error-text">{error}</span>}
+    </label>
+  );
+}
+
 function Header({ s }: { s: Suggestion }) {
   return (
     <div className="suggestion-head">
@@ -176,7 +217,9 @@ function Header({ s }: { s: Suggestion }) {
   );
 }
 
-function SuggestionCard({ s, canApply, onChange }: { s: Suggestion; canApply: boolean; onChange: (s: Suggestion) => void }) {
+type CardProps = { canApply: boolean; onChange: (s: Suggestion) => void; response: ResponseProps };
+
+function SuggestionCard({ s, canApply, onChange, response }: CardProps & { s: Suggestion }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(s.after);
   const { act, error, busy } = useSuggestionAction(s, onChange);
@@ -188,6 +231,7 @@ function SuggestionCard({ s, canApply, onChange }: { s: Suggestion; canApply: bo
       {s.explanation && <p>{s.explanation}</p>}
       {(s.before || s.after) && <Diff before={s.before} after={s.after} />}
       {editing && <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} />}
+      <ResponseBox {...response} label="Ta réponse (optionnel)" />
       {error && <div className="alert error">{error}</div>}
       {!done && (
         <div className="toolbar">
@@ -211,7 +255,7 @@ function SuggestionCard({ s, canApply, onChange }: { s: Suggestion; canApply: bo
   );
 }
 
-function QuestionCard({ q, canApply, onChange }: { q: Suggestion; canApply: boolean; onChange: (s: Suggestion) => void }) {
+function QuestionCard({ q, canApply, onChange, response }: CardProps & { q: Suggestion }) {
   const [text, setText] = useState(q.after || q.before);
   const { act, error, busy } = useSuggestionAction(q, onChange);
   const done = q.state !== "pending";
@@ -220,6 +264,7 @@ function QuestionCard({ q, canApply, onChange }: { q: Suggestion; canApply: bool
       <Header s={q} />
       <p className="question-text">❓ {q.question}</p>
       {q.before && <p className="muted">Actuellement : « {q.before} »</p>}
+      <ResponseBox {...response} label="Ta réponse" />
       {!done && (
         <>
           {canApply && q.target_path && (
@@ -237,6 +282,68 @@ function QuestionCard({ q, canApply, onChange }: { q: Suggestion; canApply: bool
         </>
       )}
       {done && q.state === "edited" && <Diff before={q.before} after={q.after} />}
+    </div>
+  );
+}
+
+function Revision({ audit, job, onRevise, onApplied }: {
+  audit: Audit;
+  job: ReturnType<typeof useJob>;
+  onRevise: () => void;
+  onApplied: (a: Audit) => void;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const rev = audit.revision;
+  const answered = audit.suggestions.filter((s) => s.response).length;
+
+  const apply = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      onApplied(await api.applyRevision(audit.id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="revision">
+      <h2>CV révisé</h2>
+      <p className="muted">
+        L'IA réécrit le CV complet à partir des remarques et de tes réponses ({answered} sur {audit.suggestions.length}).
+        Les remarques rejetées ne sont pas appliquées, mais ta réponse est prise en compte. Rien n'est enregistré dans le
+        profil avant validation.
+      </p>
+      <div className="toolbar">
+        <button className="primary" disabled={job.running} onClick={onRevise}>
+          {rev ? "Régénérer le CV révisé" : "Générer le CV révisé avec mes réponses"}
+        </button>
+      </div>
+      <JobStatus job={job.job} error={job.error} onRetry={job.retry} />
+
+      {rev && !job.running && (
+        <>
+          {rev.changements.length > 0 && <ul>{rev.changements.map((c, i) => <li key={i}>{c}</li>)}</ul>}
+          <Warnings warnings={rev.warnings} />
+          {error && <div className="alert error">{error}</div>}
+          <div className="toolbar">
+            {rev.applied_version ? (
+              <span className="badge gray">Appliqué → profil v{rev.applied_version}</span>
+            ) : (
+              <button className="primary" disabled={busy} onClick={apply}>
+                {audit.source === "file" ? "Remplacer le profil maître par ce CV" : "Appliquer au profil maître"}
+              </button>
+            )}
+            {audit.revision_pdf_url && (
+              <a className="button" href={`/api/audits/${audit.id}/revision/pdf?download=1`}>Télécharger le PDF</a>
+            )}
+          </div>
+          {audit.revision_pdf_url && <iframe title="CV révisé" src={audit.revision_pdf_url} />}
+        </>
+      )}
     </div>
   );
 }

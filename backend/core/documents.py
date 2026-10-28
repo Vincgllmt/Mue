@@ -4,7 +4,7 @@ from datetime import date
 
 from . import guard, pdf
 from .models import GeneratedDoc
-from .schemas import DOC_SCHEMAS, CvDocument, LetterDocument, ProfileData
+from .schemas import DOC_SCHEMAS, CvCompetences, CvDocument, CvExperience, CvFormation, CvProjet, LetterDocument, ProfileData
 
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
         "septembre", "octobre", "novembre", "décembre"]
@@ -27,6 +27,24 @@ def letter_text(content: dict) -> str:
     parts = [content.get("salutation", ""), *content.get("paragraphes", []), content.get("formule_politesse", "")]
     name = (content.get("identite") or {}).get("nom_complet", "")
     return "\n\n".join(p for p in [*parts, name] if p)
+
+
+def profile_to_cv(profile: ProfileData) -> CvDocument:
+    """CV complet (non ciblé) tiré du profil, pour l'aperçu PDF d'un profil révisé."""
+    categories: dict[str, list[str]] = {}
+    for c in profile.competences:
+        categories.setdefault(c.categorie or "Compétences", []).append(c.nom)
+    return CvDocument(
+        identite=profile.identite,
+        titre=profile.titre,
+        accroche=profile.accroche,
+        experiences=[CvExperience(**e.model_dump()) for e in profile.experiences],
+        formations=[CvFormation(**f.model_dump()) for f in profile.formations],
+        competences=[CvCompetences(categorie=k, items=v) for k, v in categories.items()],
+        projets=[CvProjet(**p.model_dump()) for p in profile.projets],
+        langues=profile.langues,
+        centres_interet=profile.centres_interet,
+    )
 
 
 def check(kind: str, content: dict, profile: ProfileData, offer_text: str = "") -> list[dict]:

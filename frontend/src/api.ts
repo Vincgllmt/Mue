@@ -68,6 +68,9 @@ export const api = {
   },
   updateSuggestion: (id: number, state: Suggestion["state"], after?: string) =>
     request<Suggestion>("PATCH", `/suggestions/${id}`, { state, after }),
+  respondSuggestion: (id: number, response: string) => request<Suggestion>("PATCH", `/suggestions/${id}`, { response }),
+  reviseAudit: (id: number) => request<JobStart>("POST", `/audits/${id}/revise`),
+  applyRevision: (id: number) => request<Audit>("POST", `/audits/${id}/revision/apply`),
 
   job: (id: number) => request<Job>("GET", `/jobs/${id}`),
   retryJob: (id: number) => request<Job>("POST", `/jobs/${id}/retry`),

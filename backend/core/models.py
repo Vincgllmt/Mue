@@ -64,6 +64,9 @@ class Audit(models.Model):
     profile_version = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
     target_role = models.CharField(max_length=200, blank=True)
     source = models.CharField(max_length=10, choices=SOURCES, default="profile")
+    # CV révisé à partir des réponses : {"profil", "changements", "warnings", "applied_version"}
+    revision = models.JSONField(null=True, blank=True)
+    revision_pdf_path = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -83,6 +86,7 @@ class Suggestion(models.Model):
     after = models.TextField(blank=True)
     question = models.TextField(blank=True)
     explanation = models.TextField(blank=True)
+    response = models.TextField(blank=True)  # réponse libre de l'utilisateur à la remarque
     state = models.CharField(max_length=20, choices=STATES, default="pending")
     applied_version = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 

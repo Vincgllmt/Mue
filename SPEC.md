@@ -133,6 +133,8 @@ Il porte sur le **profil maître** ou sur un **CV PDF importé**.
 - les suggestions acceptées sont appliquées au profil maître ;
 - l'historique des versions du profil est conservé, avec rollback possible.
 
+**Réponses et CV révisé** : l'utilisateur peut répondre à chaque remarque (précision, chiffre réel, raison d'un refus). Un job `revise_cv` produit alors le profil complet révisé à partir des remarques et des réponses (les réponses sont les seuls faits nouveaux autorisés), avec un aperçu PDF et le garde-fou. Il n'est appliqué au profil maître qu'après validation.
+
 **Questions de complétion** : quand une puce manque de résultat mesurable, l'IA **pose une question** (« Combien de tickets TMA traités par mois ? ») au lieu d'inventer un chiffre.
 
 ### F6. Historique des candidatures (minimal)
@@ -281,6 +283,8 @@ Job            (id, kind, status, payload, result, error, duration_ms, created_a
 | GET     | `/api/docs/{id}/pdf`               | Télécharger le PDF                                           |
 | POST    | `/api/audits`                      | Lancer un audit (body : rôle cible optionnel)                |
 | PATCH   | `/api/suggestions/{id}`            | Accepter / rejeter / éditer                                  |
+| POST    | `/api/audits/{id}/revise`          | Job de CV révisé (remarques + réponses)                      |
+| POST    | `/api/audits/{id}/revision/apply`  | Appliquer le CV révisé au profil maître                      |
 | GET     | `/api/jobs/{id}`                   | État d'un job                                                |
 | PATCH   | `/api/applications/{id}`           | Changer le statut                                            |
 

@@ -203,6 +203,11 @@ class AuditResult(Schema):
     questions: list[AuditQuestion] = Field(default_factory=list)
 
 
+class RevisionResult(Schema):
+    profil: ProfileData
+    changements: list[str] = Field(default_factory=list, description="Une phrase par modification apportée")
+
+
 # Contenu stocké par type de GeneratedDoc
 DOC_SCHEMAS: dict[str, type[Schema]] = {
     "cv": CvDocument,

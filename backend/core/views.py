@@ -226,10 +226,56 @@ def audit_detail(request, pk):
     return Response(AuditSerializer(get_object_or_404(Audit, pk=pk)).data)
 
 
+@api_view(["POST"])
+def audit_revise(request, pk):
+    audit = get_object_or_404(Audit, pk=pk)
+    if not audit.suggestions.exists():
+        return _error("L'audit n'a encore produit aucune remarque.", status.HTTP_409_CONFLICT)
+    payload = {"audit_id": audit.id}
+    if audit.source == "file":
+        audit_job = Job.objects.filter(kind="audit", payload__audit_id=audit.id).order_by("-id").first()
+        if not audit_job or not Path(audit_job.payload.get("file_path", "")).exists():
+            return _error("Le fichier du CV audité est introuvable.", status.HTTP_409_CONFLICT)
+        payload["file_path"] = audit_job.payload["file_path"]
+    elif profile_service.latest() is None:
+        return _error("Le profil maître est vide.")
+    job = enqueue("revise_cv", payload)
+    return Response({"job_id": job.id}, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(["POST"])
+def audit_revision_apply(request, pk):
+    audit = get_object_or_404(Audit, pk=pk)
+    if not audit.revision:
+        return _error("Aucun CV révisé à appliquer.", status.HTTP_409_CONFLICT)
+    try:
+        saved = profile_service.save(audit.revision["profil"], note=f"CV révisé (audit #{audit.id})")
+    except ValidationError as e:
+        return _error(_validation_message(e))
+    audit.revision["applied_version"] = saved.version
+    audit.save()
+    return Response(AuditSerializer(audit).data)
+
+
+@api_view(["GET"])
+def audit_revision_pdf(request, pk):
+    audit = get_object_or_404(Audit, pk=pk)
+    path = Path(audit.revision_pdf_path) if audit.revision_pdf_path else None
+    if not path or not path.exists():
+        raise Http404("PDF absent")
+    return FileResponse(path.open("rb"), content_type="application/pdf",
+                        as_attachment=request.GET.get("download") == "1", filename="CV_revise.pdf")
+
+
 @api_view(["PATCH"])
 def suggestion_detail(request, pk):
     s = get_object_or_404(Suggestion.objects.select_related("audit"), pk=pk)
+    if "response" in request.data:
+        s.response = (request.data.get("response") or "").strip()[:2000]
     state = request.data.get("state")
+    if state is None:
+        s.save()
+        return Response(SuggestionSerializer(s).data)
     if state not in ("accepted", "rejected", "edited", "pending"):
         return _error("État invalide.")
     if state == "edited":
