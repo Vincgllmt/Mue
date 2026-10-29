@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path("profile", views.profile),
     path("profile/import", views.profile_import),
+    path("profile/analyze-repo", views.profile_analyze_repo),
     path("profile/versions", views.profile_versions),
     path("profile/versions/<int:version>", views.profile_version_detail),
     path("profile/versions/<int:version>/restore", views.profile_version_restore),

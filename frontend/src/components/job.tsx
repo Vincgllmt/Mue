@@ -4,6 +4,7 @@ import type { Job } from "../types";
 
 const LABELS: Record<string, string> = {
   extract_profile: "Extraction du CV",
+  analyze_repo: "Analyse du dépôt GitHub",
   analyze_offer: "Analyse de l'offre",
   generate_cv: "Génération du CV",
   generate_letter: "Génération de la lettre",

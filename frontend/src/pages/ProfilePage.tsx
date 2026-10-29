@@ -4,7 +4,7 @@ import { api } from "../api";
 import { CommaList, Field, ObjectList, Row, StringList } from "../components/forms";
 import { JobStatus, useJob } from "../components/job";
 import { formatDateTime } from "../components/ui";
-import type { ProfileData, ProfileResponse, ProfileVersion } from "../types";
+import type { ProfileData, ProfileResponse, ProfileVersion, Projet } from "../types";
 
 const SECTIONS = [
   ["identite", "Identité"],
@@ -23,6 +23,7 @@ export default function ProfilePage() {
   const [versions, setVersions] = useState<ProfileVersion[]>([]);
   const [message, setMessage] = useState<{ tone: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [repoUrl, setRepoUrl] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -40,6 +41,18 @@ export default function ProfilePage() {
     setDraft(job.result!.profile as ProfileData);
     setImported(true);
     setMessage({ tone: "warning", text: "Extraction terminée : vérifie chaque section, puis clique sur « Valider l'import »." });
+  });
+
+  const repoJob = useJob((job) => {
+    const projet = job.result!.projet as Projet;
+    const sameRepo = (p: Projet) => p.url.replace(/\/+$/, "").toLowerCase() === projet.url.toLowerCase();
+    // Un dépôt déjà présent est mis à jour plutôt que dupliqué.
+    setDraft((d) => d && {
+      ...d,
+      projets: d.projets.some(sameRepo) ? d.projets.map((p) => (sameRepo(p) ? projet : p)) : [...d.projets, projet],
+    });
+    setRepoUrl("");
+    setMessage({ tone: "warning", text: `Projet « ${projet.nom} » rempli depuis GitHub : vérifie-le, puis enregistre le profil.` });
   });
 
   if (!draft || !profile) return message ? <div className={`alert ${message.tone}`}>{message.text}</div> : <p className="muted">Chargement…</p>;
@@ -202,6 +215,13 @@ export default function ProfilePage() {
         </button>
 
         <h2 id="projets">Projets</h2>
+        <form className="toolbar" onSubmit={(e) => { e.preventDefault(); repoJob.start(() => api.analyzeRepo(repoUrl)); }}>
+          <input value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} className="repo-url"
+                 placeholder="https://github.com/utilisateur/depot" aria-label="Lien du dépôt GitHub" />
+          <button disabled={repoJob.running || !repoUrl.trim()}>Analyser le dépôt GitHub</button>
+          <span className="muted">Dépôt public : description, réalisations et stack déduites du code.</span>
+        </form>
+        <JobStatus job={repoJob.job} error={repoJob.error} onRetry={repoJob.retry} />
         <ObjectList
           items={draft.projets}
           onChange={(projets) => set({ projets })}

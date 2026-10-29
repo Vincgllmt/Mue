@@ -12,7 +12,7 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from . import documents, profile_service
+from . import documents, github_repo, profile_service
 from .models import Application, Audit, GeneratedDoc, Job, Offer, Profile, Suggestion
 from .pdf import RenderError
 from .schemas import ProfileData
@@ -81,6 +81,17 @@ def profile_import(request):
     if isinstance(path, Response):
         return path
     job = enqueue("extract_profile", {"upload_path": str(path), "filename": file.name})
+    return Response({"job_id": job.id}, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(["POST"])
+def profile_analyze_repo(request):
+    url = (request.data.get("url") or "").strip()
+    try:
+        github_repo.parse_url(url)
+    except github_repo.RepoError as e:
+        return _error(str(e))
+    job = enqueue("analyze_repo", {"url": url})
     return Response({"job_id": job.id}, status=status.HTTP_202_ACCEPTED)
 
 

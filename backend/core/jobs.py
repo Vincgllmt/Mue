@@ -4,12 +4,14 @@ import logging
 import time
 from pathlib import Path
 
-from . import claude_client, documents, guard, pdf, profile_service
+from . import claude_client, documents, github_repo, guard, pdf, profile_service
 from .claude_client import ClaudeError
+from .github_repo import RepoError
 from .models import Application, Audit, GeneratedDoc, Job, Offer, Suggestion
 from .pdf import RenderError
 from .schemas import (
-    AuditResult, CvAdapte, CvDocument, LetterDocument, LettreGeneree, OfferAnalysis, ProfileData, RevisionResult,
+    AuditResult, CvAdapte, CvDocument, LetterDocument, LettreGeneree, OfferAnalysis, ProfileData, Projet,
+    RevisionResult,
 )
 from .text_extract import UnsupportedFile, extract_text
 
@@ -41,6 +43,17 @@ def run_extract_profile(job: Job):
     profile, meta = claude_client.run("extract_profile", {"cv_texte": text}, ProfileData)
     # Brouillon : il n'est enregistré qu'après validation par l'utilisateur.
     return {"profile": profile.model_dump()}, meta
+
+
+# --- F1 bis. Projet depuis un dépôt GitHub ----------------------------------------------
+
+
+def run_analyze_repo(job: Job):
+    depot = github_repo.fetch(job.payload["url"])
+    projet, meta = claude_client.run("analyze_repo", {"depot": depot}, Projet)
+    projet.url = depot["url"]
+    # Brouillon : ajouté au profil seulement quand l'utilisateur enregistre.
+    return {"projet": projet.model_dump()}, meta
 
 
 # --- F2. Analyse d'offre ----------------------------------------------------------------
@@ -218,6 +231,7 @@ def run_revise_cv(job: Job):
 
 RUNNERS = {
     "extract_profile": run_extract_profile,
+    "analyze_repo": run_analyze_repo,
     "analyze_offer": run_analyze_offer,
     "generate_cv": run_generate_cv,
     "generate_letter": run_generate_letter,
@@ -225,7 +239,7 @@ RUNNERS = {
     "revise_cv": run_revise_cv,
 }
 
-EXPECTED_ERRORS = (ClaudeError, JobError, RenderError, UnsupportedFile)
+EXPECTED_ERRORS = (ClaudeError, JobError, RenderError, RepoError, UnsupportedFile)
 
 
 def execute(job_id: int) -> Job:

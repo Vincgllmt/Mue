@@ -7,7 +7,7 @@ import yaml
 from django.conf import settings
 from rest_framework.test import APIClient
 
-from core import claude_client
+from core import claude_client, github_repo
 from core.claude_client import ClaudeError
 from core.models import Profile
 
@@ -22,6 +22,8 @@ RESPONSES = {
     "audit_cv": AUDIT,
     "extract_profile": PROFILE,
     "revise_cv": REVISION,
+    "analyze_repo": {"nom": "Mue", "description": "Générateur de CV.", "realisations": ["Développé l'API"],
+                     "stack": ["Python", "Django"], "url": "", "date": "2026"},
 }
 
 
@@ -41,6 +43,7 @@ def fake_claude(monkeypatch):
         "Tu audites un CV": "audit_cv",
         "texte brut d'un CV": "extract_profile",
         "Tu révises un CV": "revise_cv",
+        "à partir d'un dépôt GitHub": "analyze_repo",
     }
 
     def fake(prompt, timeout=None):
@@ -146,6 +149,45 @@ def test_job_title_sets_cv_title(api, with_profile, fake_claude):
     assert r.data["offer"]["job_title"] == "Ingénieur API"
     job = api.get(f"/api/jobs/{api.post(f'/api/offers/{offer_id}/generate-cv', {}, format='json').data['job_id']}").data
     assert api.get(f"/api/docs/{job['result']['doc_id']}").data["content"]["titre"] == "Ingénieur API"
+
+
+def test_analyze_repo(api, fake_claude, monkeypatch):
+    seen = []
+
+    def fake_get(path, raw=False):
+        seen.append(path)
+        if path == "/repos/camille/mue":
+            return {"name": "mue", "owner": {"login": "camille"}, "html_url": "https://github.com/camille/mue",
+                    "private": False, "created_at": "2026-01-02T00:00:00Z"}
+        if path.endswith("/contents/"):
+            return [{"name": "requirements.txt", "type": "file"}, {"name": "frontend", "type": "dir"}]
+        if path.endswith("/contents/requirements.txt"):
+            return {"encoding": "base64", "content": "RGphbmdvPT02LjE="}
+        if path.endswith("/languages"):
+            return {"Python": 1000}
+        return None
+
+    monkeypatch.setattr(github_repo, "_get", fake_get)
+    assert api.post("/api/profile/analyze-repo", {"url": "https://gitlab.com/x/y"}, format="json").status_code == 400
+    r = api.post("/api/profile/analyze-repo", {"url": "https://github.com/camille/mue.git"}, format="json")
+    job = api.get(f"/api/jobs/{r.data['job_id']}").data
+    assert job["status"] == "done", job
+    assert job["result"]["projet"]["url"] == "https://github.com/camille/mue"
+    assert job["result"]["projet"]["stack"] == ["Python", "Django"]
+    assert "/repos/camille/mue/contents/requirements.txt" in seen
+
+    monkeypatch.setattr(github_repo, "_get", lambda path, raw=False: None)
+    job = api.get(f"/api/jobs/{api.post('/api/profile/analyze-repo', {'url': 'github.com/a/b'}, format='json').data['job_id']}").data
+    assert job["status"] == "error" and "introuvable" in job["error"]
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("https://github.com/camille/mue", ("camille", "mue")),
+    ("github.com/camille/mue.git", ("camille", "mue")),
+    ("https://www.github.com/camille/my.repo/tree/main/src", ("camille", "my.repo")),
+])
+def test_parse_github_url(url, expected):
+    assert github_repo.parse_url(url) == expected
 
 
 def test_no_go_verdict_blocks_generation(api, with_profile, fake_claude):

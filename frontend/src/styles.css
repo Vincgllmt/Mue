@@ -88,6 +88,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.8rem 0; }
 .toolbar .download { display: inline-flex; gap: 0.3rem; align-items: center; }
 .toolbar .download input { width: 16rem; padding: 0.3rem 0.5rem; }
+.toolbar .repo-url { width: 24rem; max-width: 100%; }
 .toolbar.sticky { position: sticky; top: 54px; background: var(--bg); padding: 0.5rem 0; z-index: 5; margin: 0; }
 
 /* --- Cartes et listes --- */

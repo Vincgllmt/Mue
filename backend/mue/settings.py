@@ -22,6 +22,7 @@ for d in (DATA_DIR, PDF_DIR, UPLOAD_DIR, CLAUDE_LOG_DIR, CLAUDE_SANDBOX_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 CLAUDE_CODE_OAUTH_TOKEN = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # facultatif : analyse de dépôts au-delà de 60 appels/heure
 CLAUDE_MODEL = os.environ.get("MUE_CLAUDE_MODEL", "sonnet")
 CLAUDE_TIMEOUT = int(os.environ.get("MUE_CLAUDE_TIMEOUT", "120"))
 

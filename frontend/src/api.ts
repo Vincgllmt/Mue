@@ -36,6 +36,7 @@ type JobStart = { job_id: number };
 export const api = {
   getProfile: () => request<ProfileResponse>("GET", "/profile"),
   saveProfile: (data: ProfileData, note?: string) => request<ProfileResponse>("PUT", "/profile", { data, note }),
+  analyzeRepo: (url: string) => request<JobStart>("POST", "/profile/analyze-repo", { url }),
   importCv: (file: File) => {
     const form = new FormData();
     form.append("file", file);
