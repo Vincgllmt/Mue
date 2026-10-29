@@ -159,9 +159,10 @@ def test_analyze_repo(api, fake_claude, monkeypatch):
         if path == "/repos/camille/mue":
             return {"name": "mue", "owner": {"login": "camille"}, "html_url": "https://github.com/camille/mue",
                     "private": False, "created_at": "2026-01-02T00:00:00Z"}
-        if path.endswith("/contents/"):
-            return [{"name": "requirements.txt", "type": "file"}, {"name": "frontend", "type": "dir"}]
-        if path.endswith("/contents/requirements.txt"):
+        if "/git/trees/" in path:
+            return {"tree": [{"path": "backend", "type": "tree"}, {"path": "backend/requirements.txt", "type": "blob"},
+                             {"path": "backend/app/deep/package.json", "type": "blob"}]}
+        if path.endswith("/contents/backend/requirements.txt"):
             return {"encoding": "base64", "content": "RGphbmdvPT02LjE="}
         if path.endswith("/languages"):
             return {"Python": 1000}
@@ -174,7 +175,8 @@ def test_analyze_repo(api, fake_claude, monkeypatch):
     assert job["status"] == "done", job
     assert job["result"]["projet"]["url"] == "https://github.com/camille/mue"
     assert job["result"]["projet"]["stack"] == ["Python", "Django"]
-    assert "/repos/camille/mue/contents/requirements.txt" in seen
+    assert "/repos/camille/mue/contents/backend/requirements.txt" in seen
+    assert not any("deep" in p for p in seen)  # trop profond : ignoré
 
     monkeypatch.setattr(github_repo, "_get", lambda path, raw=False: None)
     job = api.get(f"/api/jobs/{api.post('/api/profile/analyze-repo', {'url': 'github.com/a/b'}, format='json').data['job_id']}").data

@@ -1,7 +1,8 @@
 """Lecture d'un dépôt GitHub public via l'API REST (sans dépendance externe).
 
-Collecte de quoi décrire le projet : métadonnées, langages, README, arborescence racine
-et fichiers de dépendances. Un `GITHUB_TOKEN` facultatif relève la limite de 60 appels/heure.
+Collecte de quoi décrire le projet : métadonnées, langages, README, arborescence (deux niveaux)
+et fichiers de dépendances, à la racine ou dans un sous-dossier (monorepo backend/ + frontend/).
+Un `GITHUB_TOKEN` facultatif relève la limite de 60 appels/heure.
 """
 
 import base64
@@ -15,7 +16,7 @@ from django.conf import settings
 API = "https://api.github.com"
 URL_RE = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?(?:[/#?].*)?$", re.IGNORECASE)
 
-# Fichiers qui révèlent la stack, lus s'ils sont à la racine.
+# Fichiers qui révèlent la stack, lus à la racine ou un niveau en dessous.
 MANIFESTS = [
     "package.json", "requirements.txt", "pyproject.toml", "Pipfile", "setup.py", "composer.json", "Cargo.toml",
     "go.mod", "Gemfile", "pom.xml", "build.gradle", "build.gradle.kts", "pubspec.yaml", "mix.exs",
@@ -23,6 +24,8 @@ MANIFESTS = [
 ]
 README_MAX = 12000
 MANIFEST_MAX = 3000
+MANIFEST_COUNT = 8
+TREE_MAX = 200
 
 
 class RepoError(Exception):
@@ -75,8 +78,10 @@ def fetch(url: str) -> dict:
         raise RepoError("Ce dépôt est privé : seuls les dépôts publics peuvent être analysés.")
     owner, repo = meta["owner"]["login"], meta["name"]
 
-    root = _get(f"/repos/{owner}/{repo}/contents/") or []
-    names = {item["name"] for item in root if isinstance(item, dict)}
+    tree = (_get(f"/repos/{owner}/{repo}/git/trees/{meta.get('default_branch') or 'HEAD'}?recursive=1") or {}).get("tree", [])
+    shallow = [i for i in tree if i["path"].count("/") <= 1]
+    manifests = [i["path"] for i in shallow if i.get("type") == "blob" and i["path"].rsplit("/", 1)[-1] in MANIFESTS]
+    manifests.sort(key=lambda path: (path.count("/"), path))  # la racine d'abord
     readme = _get(f"/repos/{owner}/{repo}/readme", raw=True) or ""
     return {
         "url": meta["html_url"],
@@ -88,8 +93,7 @@ def fetch(url: str) -> dict:
         "cree_le": (meta.get("created_at") or "")[:10],
         "dernier_push": (meta.get("pushed_at") or "")[:10],
         "langages": _get(f"/repos/{owner}/{repo}/languages") or {},
-        "arborescence_racine": sorted(f"{i['name']}/" if i.get("type") == "dir" else i["name"]
-                                      for i in root if isinstance(i, dict)),
-        "fichiers_dependances": {n: _file(owner, repo, n, MANIFEST_MAX) for n in MANIFESTS if n in names},
+        "arborescence": [f"{i['path']}/" if i.get("type") == "tree" else i["path"] for i in shallow[:TREE_MAX]],
+        "fichiers_dependances": {path: _file(owner, repo, path, MANIFEST_MAX) for path in manifests[:MANIFEST_COUNT]},
         "readme": readme[:README_MAX],
     }
