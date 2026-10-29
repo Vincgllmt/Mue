@@ -9,6 +9,7 @@ export const VERDICTS: Record<Verdict, { label: string; tone: string }> = {
 
 export const STATUSES: Record<ApplicationStatus, string> = {
   brouillon: "Brouillon",
+  non_postule: "Non postulé",
   envoyee: "Envoyée",
   entretien: "Entretien",
   refus: "Refus",

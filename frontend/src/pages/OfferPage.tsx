@@ -61,6 +61,9 @@ export default function OfferPage() {
               }}
             />
           )}
+          {offer.application && (
+            <span className="muted status-date">depuis le {formatDateTime(offer.application.status_changed_at)}</span>
+          )}
           <button className="danger small" onClick={remove}>Supprimer</button>
         </div>
       </div>

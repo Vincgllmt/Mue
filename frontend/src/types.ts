@@ -132,11 +132,12 @@ export interface GeneratedDoc<C = any> {
   updated_at: string;
 }
 
-export type ApplicationStatus = "brouillon" | "envoyee" | "entretien" | "refus";
+export type ApplicationStatus = "brouillon" | "non_postule" | "envoyee" | "entretien" | "refus";
 
 export interface Application {
   id: number;
   status: ApplicationStatus;
+  status_changed_at: string;
   profile_version: number | null;
   docs: GeneratedDoc[];
   created_at: string;

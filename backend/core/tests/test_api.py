@@ -130,7 +130,11 @@ def test_offer_cv_letter_flow(api, with_profile, fake_claude):
     listing = api.get("/api/offers").data
     app = listing[0]["application"]
     assert len(app["docs"]) == 3 and app["profile_version"] == 1
-    assert api.patch(f"/api/applications/{app['id']}", {"status": "envoyee"}, format="json").data["status"] == "envoyee"
+    sent = api.patch(f"/api/applications/{app['id']}", {"status": "envoyee"}, format="json").data
+    assert sent["status"] == "envoyee" and sent["status_changed_at"] > app["status_changed_at"]
+    # Re-sélectionner le même statut ne change pas la date.
+    assert api.patch(f"/api/applications/{app['id']}", {"status": "envoyee"}, format="json").data["status_changed_at"] == sent["status_changed_at"]
+    assert api.patch(f"/api/applications/{app['id']}", {"status": "non_postule"}, format="json").data["status"] == "non_postule"
     assert api.patch(f"/api/applications/{app['id']}", {"status": "nimporte"}, format="json").status_code == 400
 
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from .documents import letter_text
@@ -39,8 +40,13 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Application
-        fields = ["id", "status", "profile_version", "docs", "created_at", "updated_at"]
-        read_only_fields = ["profile_version", "docs", "created_at", "updated_at"]
+        fields = ["id", "status", "status_changed_at", "profile_version", "docs", "created_at", "updated_at"]
+        read_only_fields = ["status_changed_at", "profile_version", "docs", "created_at", "updated_at"]
+
+    def update(self, app, validated_data):
+        if "status" in validated_data and validated_data["status"] != app.status:
+            validated_data["status_changed_at"] = timezone.now()
+        return super().update(app, validated_data)
 
 
 class OfferSerializer(serializers.ModelSerializer):
