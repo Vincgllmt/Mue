@@ -47,8 +47,8 @@ export const api = {
 
   offers: () => request<Offer[]>("GET", "/offers"),
   offer: (id: number) => request<Offer>("GET", `/offers/${id}`),
-  createOffer: (raw_text: string, url: string) =>
-    request<{ offer: Offer; job_id: number }>("POST", "/offers", { raw_text, url }),
+  createOffer: (raw_text: string, url: string, job_title: string) =>
+    request<{ offer: Offer; job_id: number }>("POST", "/offers", { raw_text, url, job_title }),
   deleteOffer: (id: number) => request<void>("DELETE", `/offers/${id}`),
   generateCv: (id: number, force = false) => request<JobStart>("POST", `/offers/${id}/generate-cv`, { force }),
   generateLetter: (id: number, params: { ton: string; longueur: string; focus: string; short: boolean; force: boolean }) =>

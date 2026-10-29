@@ -1,4 +1,5 @@
 import copy
+import re
 import uuid
 from pathlib import Path
 
@@ -113,7 +114,11 @@ def offers(request):
         return _error("Colle le texte complet de l'offre (au moins 100 caractères).")
     if profile_service.latest() is None:
         return _error("Le profil maître est vide : importe un CV ou remplis ton profil d'abord.")
-    offer = Offer.objects.create(raw_text=raw_text, url=(request.data.get("url") or "").strip())
+    offer = Offer.objects.create(
+        raw_text=raw_text,
+        url=(request.data.get("url") or "").strip(),
+        job_title=(request.data.get("job_title") or "").strip()[:200],
+    )
     Application.objects.create(offer=offer, profile_version=profile_service.latest())
     job = enqueue("analyze_offer", {"offer_id": offer.id})
     return Response({"offer": OfferSerializer(offer).data, "job_id": job.id}, status=status.HTTP_202_ACCEPTED)
@@ -191,8 +196,16 @@ def doc_pdf(request, pk):
     name = "CV" if doc.kind == "cv" else "Lettre"
     company = "".join(c for c in analysis.get("entreprise", "") if c.isalnum() or c in "-_") or str(doc.id)
     download = request.GET.get("download") == "1"
+    filename = _safe_filename(request.GET.get("filename", "")) or f"{name}_{company}"
     return FileResponse(path.open("rb"), content_type="application/pdf", as_attachment=download,
-                        filename=f"{name}_{company}.pdf")
+                        filename=f"{filename}.pdf")
+
+
+def _safe_filename(name: str) -> str:
+    """Nom de fichier choisi par l'utilisateur, sans extension ni caractères interdits sous Windows."""
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", name).strip()
+    name = re.sub(r"\.pdf$", "", name, flags=re.IGNORECASE)
+    return name.strip(" .")[:150]
 
 
 # --- Audit ------------------------------------------------------------------------------------

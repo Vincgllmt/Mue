@@ -78,6 +78,8 @@ def run_generate_cv(job: Job):
         CvAdapte,
     )
     content = CvDocument(**cv.model_dump(), identite=profile.identite)
+    if offer.job_title:
+        content.titre = offer.job_title
     doc = GeneratedDoc(application=_application(offer), kind="cv", content={})
     documents.update_content(doc, content.model_dump(), profile)
     return {"doc_id": doc.id, "offer_id": offer.id}, meta

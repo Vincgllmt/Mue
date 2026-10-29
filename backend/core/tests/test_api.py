@@ -108,6 +108,8 @@ def test_offer_cv_letter_flow(api, with_profile, fake_claude):
     assert doc["content"]["identite"]["nom_complet"] == "Camille Martin"
     pdf = api.get(f"/api/docs/{doc['id']}/pdf")
     assert pdf.status_code == 200 and b"".join(pdf.streaming_content).startswith(b"%PDF")
+    named = api.get(f"/api/docs/{doc['id']}/pdf", {"download": "1", "filename": "Mon/CV: Acme.pdf"})
+    assert 'filename="MonCV Acme.pdf"' in named["Content-Disposition"]
 
     # Édition manuelle : re-rendu + garde-fou
     content = doc["content"]
@@ -136,6 +138,14 @@ def test_offer_cv_letter_flow(api, with_profile, fake_claude):
     assert api.patch(f"/api/applications/{app['id']}", {"status": "envoyee"}, format="json").data["status_changed_at"] == sent["status_changed_at"]
     assert api.patch(f"/api/applications/{app['id']}", {"status": "non_postule"}, format="json").data["status"] == "non_postule"
     assert api.patch(f"/api/applications/{app['id']}", {"status": "nimporte"}, format="json").status_code == 400
+
+
+def test_job_title_sets_cv_title(api, with_profile, fake_claude):
+    r = api.post("/api/offers", {"raw_text": OFFER_TEXT, "job_title": "  Ingénieur API  "}, format="json")
+    offer_id = r.data["offer"]["id"]
+    assert r.data["offer"]["job_title"] == "Ingénieur API"
+    job = api.get(f"/api/jobs/{api.post(f'/api/offers/{offer_id}/generate-cv', {}, format='json').data['job_id']}").data
+    assert api.get(f"/api/docs/{job['result']['doc_id']}").data["content"]["titre"] == "Ingénieur API"
 
 
 def test_no_go_verdict_blocks_generation(api, with_profile, fake_claude):

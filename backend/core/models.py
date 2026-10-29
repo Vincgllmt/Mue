@@ -19,6 +19,7 @@ class Profile(models.Model):
 
 class Offer(models.Model):
     url = models.URLField(max_length=1000, blank=True)
+    job_title = models.CharField(max_length=200, blank=True)  # impose le titre du CV s'il est renseigné
     raw_text = models.TextField()
     analysis = models.JSONField(null=True, blank=True)
     verdict = models.CharField(max_length=30, blank=True)

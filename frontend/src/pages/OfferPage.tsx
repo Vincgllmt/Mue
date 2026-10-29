@@ -167,7 +167,7 @@ function CvTab({ offer, reload, autoJob }: { offer: Offer; reload: () => Promise
         <VersionPicker docs={docs} doc={doc} select={select} />
       </div>
       <JobStatus job={gen.job} error={gen.error} onRetry={gen.retry} />
-      {doc && <DocEditor key={doc.id} doc={doc} onSaved={reload}
+      {doc && <DocEditor key={doc.id} doc={doc} onSaved={reload} fileName={defaultFileName("CV", offer, doc)}
         form={(v, set) => <CvForm value={v as CvContent} onChange={set} />} />}
     </div>
   );
@@ -216,20 +216,28 @@ function LetterTab({ offer, reload }: { offer: Offer; reload: () => Promise<Offe
         </div>
       </div>
       <JobStatus job={gen.job} error={gen.error} onRetry={gen.retry} />
-      {doc && <DocEditor key={doc.id} doc={doc} onSaved={reload}
+      {doc && <DocEditor key={doc.id} doc={doc} onSaved={reload} fileName={defaultFileName("Lettre", offer, doc)}
         form={(v, set) => <LetterForm value={v as LetterContent} onChange={set} />} />}
       {shortDocs[0] && <ShortLetter key={shortDocs[0].id} doc={shortDocs[0]} onSaved={reload} />}
     </div>
   );
 }
 
+/** Nom proposé au téléchargement : « CV_Camille_Martin_Acme ». */
+function defaultFileName(prefix: string, offer: Offer, doc: GeneratedDoc) {
+  const name = (doc.content as { identite?: { nom_complet?: string } }).identite?.nom_complet;
+  return [prefix, name, offer.analysis?.entreprise].filter(Boolean).join(" ").trim().replace(/\s+/g, "_");
+}
+
 function DocEditor({
-  doc, form, onSaved,
+  doc, form, onSaved, fileName: initialFileName,
 }: {
   doc: GeneratedDoc;
   form: (value: unknown, set: (v: any) => void) => React.ReactNode;
   onSaved: () => Promise<unknown>;
+  fileName: string;
 }) {
+  const [fileName, setFileName] = useState(initialFileName);
   const [draft, setDraft] = useState(doc.content);
   const [current, setCurrent] = useState(doc);
   const [saving, setSaving] = useState(false);
@@ -260,7 +268,17 @@ function DocEditor({
             {saving ? "Rendu…" : "Enregistrer et régénérer le PDF"}
           </button>
           {dirty && <span className="muted">Modifications non enregistrées</span>}
-          {current.pdf_url && <a className="button" href={`/api/docs/${doc.id}/pdf?download=1`}>Télécharger le PDF</a>}
+          {current.pdf_url && (
+            <span className="download">
+              <input value={fileName} onChange={(e) => setFileName(e.target.value)} aria-label="Nom du fichier"
+                     placeholder="Nom du fichier" />
+              <span className="muted">.pdf</span>
+              <a className="button"
+                 href={`/api/docs/${doc.id}/pdf?download=1&filename=${encodeURIComponent(fileName.trim())}`}>
+                Télécharger
+              </a>
+            </span>
+          )}
           {current.text && <CopyButton text={current.text} />}
         </div>
         {error && <div className="alert error">{error}</div>}

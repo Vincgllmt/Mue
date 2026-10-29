@@ -86,6 +86,8 @@ button.icon { padding: 0.2rem 0.5rem; font-size: 0.85rem; color: var(--muted); }
 button.link { border: none; background: none; color: var(--accent); padding: 0.2rem 0; }
 button.link:hover { background: none; text-decoration: underline; }
 .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.8rem 0; }
+.toolbar .download { display: inline-flex; gap: 0.3rem; align-items: center; }
+.toolbar .download input { width: 16rem; padding: 0.3rem 0.5rem; }
 .toolbar.sticky { position: sticky; top: 54px; background: var(--bg); padding: 0.5rem 0; z-index: 5; margin: 0; }
 
 /* --- Cartes et listes --- */

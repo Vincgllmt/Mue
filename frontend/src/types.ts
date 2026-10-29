@@ -147,6 +147,7 @@ export interface Application {
 export interface Offer {
   id: number;
   url: string;
+  job_title: string;
   raw_text?: string;
   analysis: OfferAnalysis | null;
   verdict: Verdict | "";

@@ -55,7 +55,7 @@ class OfferSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Offer
-        fields = ["id", "url", "raw_text", "analysis", "verdict", "score", "created_at", "application", "analysis_job"]
+        fields = ["id", "url", "job_title", "raw_text", "analysis", "verdict", "score", "created_at", "application", "analysis_job"]
         read_only_fields = ["analysis", "verdict", "score", "created_at"]
 
     def get_analysis_job(self, offer):
@@ -65,7 +65,7 @@ class OfferSerializer(serializers.ModelSerializer):
 
 class OfferListSerializer(OfferSerializer):
     class Meta(OfferSerializer.Meta):
-        fields = ["id", "url", "analysis", "verdict", "score", "created_at", "application", "analysis_job"]
+        fields = ["id", "url", "job_title", "analysis", "verdict", "score", "created_at", "application", "analysis_job"]
 
 
 class SuggestionSerializer(serializers.ModelSerializer):
