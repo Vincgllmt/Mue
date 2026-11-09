@@ -1,8 +1,8 @@
 from django.contrib import admin
 
-from .models import Application, Audit, GeneratedDoc, Job, Offer, Profile, Suggestion
+from .models import Application, Audit, GeneratedDoc, Interview, Job, Offer, Profile, Suggestion
 
-for model in (Profile, Offer, Application, GeneratedDoc, Audit, Suggestion):
+for model in (Profile, Offer, Application, GeneratedDoc, Interview, Audit, Suggestion):
     admin.site.register(model)
 
 

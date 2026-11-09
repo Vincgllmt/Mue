@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .documents import letter_text
-from .models import Application, Audit, GeneratedDoc, Job, Offer, Profile, Suggestion
+from .models import Application, Audit, GeneratedDoc, Interview, Job, Offer, Profile, Suggestion
 
 
 class ProfileVersionSerializer(serializers.ModelSerializer):
@@ -105,3 +105,17 @@ class AuditSerializer(serializers.ModelSerializer):
         if not path or not path.exists():
             return None
         return f"/api/audits/{audit.id}/revision/pdf?v={int(path.stat().st_mtime)}"
+
+
+class InterviewSerializer(serializers.ModelSerializer):
+    job = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Interview
+        fields = ["id", "application", "kind", "scheduled_at", "context", "prep", "interviewers", "questions_asked",
+                  "notes", "feeling", "next_steps", "job", "created_at", "updated_at"]
+        read_only_fields = ["application", "prep", "created_at", "updated_at"]
+
+    def get_job(self, interview):
+        job = Job.objects.filter(kind="prepare_interview", payload__interview_id=interview.id).order_by("-id").first()
+        return {"id": job.id, "status": job.status, "error": job.error} if job else None

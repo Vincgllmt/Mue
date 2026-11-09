@@ -1,5 +1,5 @@
 import type {
-  Application, Audit, GeneratedDoc, Job, Offer, ProfileData, ProfileResponse, ProfileVersion, Suggestion,
+  Application, Audit, GeneratedDoc, Interview, Job, Offer, ProfileData, ProfileResponse, ProfileVersion, Suggestion,
 } from "./types";
 
 export class ApiError extends Error {
@@ -54,6 +54,13 @@ export const api = {
   generateCv: (id: number, force = false) => request<JobStart>("POST", `/offers/${id}/generate-cv`, { force }),
   generateLetter: (id: number, params: { ton: string; longueur: string; focus: string; short: boolean; force: boolean }) =>
     request<JobStart>("POST", `/offers/${id}/generate-letter`, params),
+
+  interviews: (offerId: number) => request<Interview[]>("GET", `/offers/${offerId}/interviews`),
+  createInterview: (offerId: number, data: Pick<Interview, "kind" | "scheduled_at" | "context">) =>
+    request<{ interview: Interview; job_id: number }>("POST", `/offers/${offerId}/interviews`, data),
+  updateInterview: (id: number, data: Partial<Interview>) => request<Interview>("PATCH", `/interviews/${id}`, data),
+  deleteInterview: (id: number) => request<void>("DELETE", `/interviews/${id}`),
+  prepareInterview: (id: number) => request<{ interview: Interview; job_id: number }>("POST", `/interviews/${id}/prepare`),
 
   doc: (id: number) => request<GeneratedDoc>("GET", `/docs/${id}`),
   saveDoc: (id: number, content: unknown) => request<GeneratedDoc>("PUT", `/docs/${id}`, { content }),

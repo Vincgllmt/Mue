@@ -67,6 +67,30 @@ class GeneratedDoc(models.Model):
         ordering = ["-created_at"]
 
 
+class Interview(models.Model):
+    """Un entretien d'une candidature : fiche de préparation générée et débrief saisi après coup."""
+
+    KINDS = [("rh", "RH"), ("technique", "Technique"), ("manager", "Manager"), ("culture", "Culture fit")]
+    FEELINGS = [("", "—"), ("bien", "Bien passé"), ("mitige", "Mitigé"), ("mal", "Mal passé")]
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name="interviews")
+    kind = models.CharField(max_length=20, choices=KINDS, default="rh")
+    scheduled_at = models.DateTimeField(null=True, blank=True)
+    context = models.TextField(blank=True)  # infos connues avant l'entretien (« live coding prévu »…)
+    prep = models.JSONField(null=True, blank=True)  # InterviewPrep
+    # Débrief
+    interviewers = models.CharField(max_length=300, blank=True)
+    questions_asked = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    feeling = models.CharField(max_length=10, choices=FEELINGS, blank=True)
+    next_steps = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class Audit(models.Model):
     SOURCES = [("profile", "Profil maître"), ("file", "CV importé")]
 

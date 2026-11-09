@@ -7,11 +7,11 @@ from pathlib import Path
 from . import claude_client, documents, github_repo, guard, pdf, profile_service
 from .claude_client import ClaudeError
 from .github_repo import RepoError
-from .models import Application, Audit, GeneratedDoc, Job, Offer, Suggestion
+from .models import Application, Audit, GeneratedDoc, Interview, Job, Offer, Suggestion
 from .pdf import RenderError
 from .schemas import (
-    AuditResult, CvAdapte, CvDocument, LetterDocument, LettreGeneree, OfferAnalysis, ProfileData, Projet,
-    RevisionResult,
+    AuditResult, CvAdapte, CvDocument, InterviewPrep, LetterDocument, LettreGeneree, OfferAnalysis, ProfileData,
+    Projet, RevisionResult,
 )
 from .text_extract import UnsupportedFile, extract_text
 
@@ -229,6 +229,42 @@ def run_revise_cv(job: Job):
     return {"audit_id": audit.id}, meta
 
 
+# --- F7. Préparation d'entretien ---------------------------------------------------------------
+
+
+def run_prepare_interview(job: Job):
+    interview = Interview.objects.select_related("application__offer").get(pk=job.payload["interview_id"])
+    offer = interview.application.offer
+    profile = _require_profile()
+    # Les débriefs des tours précédents orientent la préparation du suivant.
+    previous = [
+        {
+            "type": i.get_kind_display(),
+            "interlocuteurs": i.interviewers,
+            "questions_posees": i.questions_asked,
+            "notes": i.notes,
+            "suite": i.next_steps,
+        }
+        for i in interview.application.interviews.exclude(pk=interview.pk).filter(created_at__lt=interview.created_at)
+        .order_by("created_at")
+        if i.questions_asked or i.notes or i.next_steps
+    ]
+    context = {
+        "entretien": {
+            "type": interview.get_kind_display(),
+            "contexte": interview.context or "Aucune information particulière.",
+        },
+        "entretiens_precedents": previous or "Aucun.",
+        "profil": profile.model_dump(),
+        "analyse": offer.analysis or {},
+        "offre": offer.raw_text,
+    }
+    prep, meta = claude_client.run("prepare_interview", context, InterviewPrep)
+    interview.prep = prep.model_dump()
+    interview.save()
+    return {"interview_id": interview.id, "offer_id": offer.id}, meta
+
+
 RUNNERS = {
     "extract_profile": run_extract_profile,
     "analyze_repo": run_analyze_repo,
@@ -237,6 +273,7 @@ RUNNERS = {
     "generate_letter": run_generate_letter,
     "audit": run_audit,
     "revise_cv": run_revise_cv,
+    "prepare_interview": run_prepare_interview,
 }
 
 EXPECTED_ERRORS = (ClaudeError, JobError, RenderError, RepoError, UnsupportedFile)

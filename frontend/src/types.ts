@@ -224,3 +224,39 @@ export interface AuditRevision {
   warnings: GuardWarning[];
   applied_version: number | null;
 }
+
+export type InterviewKind = "rh" | "technique" | "manager" | "culture";
+export type InterviewFeeling = "" | "bien" | "mitige" | "mal";
+
+export interface InterviewQuestion {
+  categorie: "parcours" | "motivation" | "technique" | "comportementale" | "ecart";
+  question: string;
+  pourquoi: string;
+  piste_reponse: string;
+  appuis: string[];
+}
+
+export interface InterviewPrep {
+  pitch: string;
+  messages_cles: string[];
+  questions: InterviewQuestion[];
+  points_vigilance: string[];
+  questions_a_poser: string[];
+}
+
+export interface Interview {
+  id: number;
+  application: number;
+  kind: InterviewKind;
+  scheduled_at: string | null;
+  context: string;
+  prep: InterviewPrep | null;
+  interviewers: string;
+  questions_asked: string;
+  notes: string;
+  feeling: InterviewFeeling;
+  next_steps: string;
+  job: JobRef | null;
+  created_at: string;
+  updated_at: string;
+}

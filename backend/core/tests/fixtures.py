@@ -106,3 +106,15 @@ REVISION = {
     },
     "changements": ["Exemple SAS, puce 2 : ajout du volume de tickets."],
 }
+
+INTERVIEW_PREP = {
+    "pitch": "Je suis développeuse back-end Python depuis quatre ans.",
+    "messages_cles": ["API utilisée par 3 applications"],
+    "questions": [
+        {"categorie": "technique", "question": "Comment avez-vous conçu l'API de facturation ?",
+         "pourquoi": "Conception d'API.", "piste_reponse": "Chez Exemple SAS…", "appuis": ["Exemple SAS — API de facturation"]},
+        {"categorie": "ecart", "question": "Avez-vous utilisé Kubernetes ?", "piste_reponse": "Docker au quotidien…"},
+    ],
+    "points_vigilance": ["Pas de Kubernetes."],
+    "questions_a_poser": ["Quelle part de TMA ?"],
+}

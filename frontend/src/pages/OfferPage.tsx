@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { CvForm, LetterForm } from "../components/DocForms";
 import { Field } from "../components/forms";
+import { InterviewsTab } from "../components/Interviews";
 import { JobStatus, useJob } from "../components/job";
 import { CopyButton, Score, StatusSelect, VerdictBadge, Warnings, formatDateTime } from "../components/ui";
 import type { CvContent, GeneratedDoc, LetterContent, Offer, OfferAnalysis } from "../types";
@@ -12,7 +13,7 @@ export default function OfferPage() {
   const navigate = useNavigate();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"cv" | "letter">("cv");
+  const [tab, setTab] = useState<"cv" | "letter" | "interviews">("cv");
 
   const [autoCvJob, setAutoCvJob] = useState<number | null>(null);
 
@@ -76,8 +77,11 @@ export default function OfferPage() {
           <div className="tabs">
             <button className={tab === "cv" ? "active" : ""} onClick={() => setTab("cv")}>CV adapté</button>
             <button className={tab === "letter" ? "active" : ""} onClick={() => setTab("letter")}>Lettre de motivation</button>
+            <button className={tab === "interviews" ? "active" : ""} onClick={() => setTab("interviews")}>Entretiens</button>
           </div>
-          {tab === "cv" ? <CvTab offer={offer} reload={reload} autoJob={autoCvJob} /> : <LetterTab offer={offer} reload={reload} />}
+          {tab === "cv" && <CvTab offer={offer} reload={reload} autoJob={autoCvJob} />}
+          {tab === "letter" && <LetterTab offer={offer} reload={reload} />}
+          {tab === "interviews" && <InterviewsTab offer={offer} reload={reload} />}
         </>
       )}
     </section>

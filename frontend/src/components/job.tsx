@@ -10,6 +10,7 @@ const LABELS: Record<string, string> = {
   generate_letter: "Génération de la lettre",
   audit: "Audit du CV",
   revise_cv: "Révision du CV",
+  prepare_interview: "Préparation de l'entretien",
 };
 
 /** Lance et suit un job asynchrone ; `onDone` reçoit le job terminé avec succès. */

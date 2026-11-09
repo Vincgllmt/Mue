@@ -13,11 +13,11 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from . import documents, github_repo, profile_service
-from .models import Application, Audit, GeneratedDoc, Job, Offer, Profile, Suggestion
+from .models import Application, Audit, GeneratedDoc, Interview, Job, Offer, Profile, Suggestion
 from .pdf import RenderError
 from .schemas import ProfileData
 from .serializers import (
-    ApplicationSerializer, AuditSerializer, DocSerializer, JobSerializer, OfferListSerializer,
+    ApplicationSerializer, AuditSerializer, DocSerializer, InterviewSerializer, JobSerializer, OfferListSerializer,
     OfferSerializer, ProfileVersionSerializer, SuggestionSerializer,
 )
 from .tasks import enqueue, retry
@@ -176,6 +176,59 @@ def offer_generate_letter(request, pk):
     }
     job = enqueue("generate_letter", payload)
     return Response({"job_id": job.id}, status=status.HTTP_202_ACCEPTED)
+
+
+# --- Entretiens ------------------------------------------------------------------------------
+
+# Passer un entretien fait avancer la candidature, sauf si elle est déjà close.
+STATUSES_BEFORE_INTERVIEW = ("brouillon", "non_postule", "envoyee")
+
+
+def _enqueue_prep(interview: Interview) -> Response | None:
+    if not interview.application.offer.analysis:
+        return _error("L'analyse de l'offre n'est pas terminée.", status.HTTP_409_CONFLICT)
+    if profile_service.latest() is None:
+        return _error("Le profil maître est vide : importe un CV ou remplis ton profil d'abord.")
+    return Response({"interview": InterviewSerializer(interview).data,
+                     "job_id": enqueue("prepare_interview", {"interview_id": interview.id}).id},
+                    status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(["GET", "POST"])
+def offer_interviews(request, pk):
+    offer = get_object_or_404(Offer, pk=pk)
+    app, _ = Application.objects.get_or_create(offer=offer, defaults={"profile_version": profile_service.latest()})
+    if request.method == "GET":
+        return Response(InterviewSerializer(app.interviews.all(), many=True).data)
+    if not offer.analysis:
+        return _error("L'analyse de l'offre n'est pas terminée.", status.HTTP_409_CONFLICT)
+    serializer = InterviewSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    interview = serializer.save(application=app)
+    if app.status in STATUSES_BEFORE_INTERVIEW:
+        moved = ApplicationSerializer(app, data={"status": "entretien"}, partial=True)
+        moved.is_valid(raise_exception=True)
+        moved.save()
+    return _enqueue_prep(interview)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+def interview_detail(request, pk):
+    interview = get_object_or_404(Interview, pk=pk)
+    if request.method == "DELETE":
+        interview.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    if request.method == "PATCH":
+        serializer = InterviewSerializer(interview, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+    return Response(InterviewSerializer(interview).data)
+
+
+@api_view(["POST"])
+def interview_prepare(request, pk):
+    interview = get_object_or_404(Interview.objects.select_related("application__offer"), pk=pk)
+    return _enqueue_prep(interview)
 
 
 # --- Documents ------------------------------------------------------------------------------

@@ -143,6 +143,21 @@ Il porte sur le **profil maître** ou sur un **CV PDF importé**.
 - Un statut manuel : `brouillon` / `envoyée` / `entretien` / `refus`.
 - Un suivi complet façon kanban avec relances est prévu en v2.
 
+### F7. Préparation d'entretien
+
+Rattachée à une candidature : chaque offre peut avoir plusieurs entretiens (1er tour RH, technique…).
+
+- **Entrées** : type d'entretien (`rh` / `technique` / `manager` / `culture`), date optionnelle, contexte libre (« live coding annoncé »), profil maître, analyse et texte de l'offre, et les débriefs des entretiens précédents de la même candidature.
+- **Fiche générée** (job `prepare_interview`) :
+    - `pitch` : réponse à « Présentez-vous » (150 à 250 mots) ;
+    - `messages_cles` : 3 à 5 idées à faire passer ;
+    - `questions` : 10 à 14 questions probables (`parcours`, `motivation`, `technique`, `comportementale`, `ecart`), chacune avec ce que le recruteur vérifie, une piste de réponse (STAR pour les comportementales) et les éléments du profil mobilisés ;
+    - `points_vigilance` : écarts et fragilités, et comment les aborder honnêtement ;
+    - `questions_a_poser` : questions du candidat, spécifiques à l'offre.
+- **Anti-invention** : les réponses ne s'appuient que sur le profil. Quand un chiffre ou un exemple manque, l'IA laisse un `[à compléter]`, surligné dans l'UI.
+- **Débrief** (saisi après l'entretien) : interlocuteurs, ressenti, questions réellement posées, notes, suite annoncée. Il est réinjecté dans la préparation des tours suivants.
+- Créer un entretien fait passer la candidature au statut `entretien` si elle était `brouillon`, `non_postule` ou `envoyee`.
+
 ---
 
 ## 3. Intégration Claude Code
@@ -204,6 +219,7 @@ def run(task: str, context: dict, schema: type[BaseModel]) -> BaseModel:
     - `generate_cv.md`
     - `generate_letter.md`
     - `audit_cv.md`
+    - `prepare_interview.md`
 - Chaque prompt contient :
     - le rôle ;
     - les règles anti-invention ;
@@ -260,6 +276,9 @@ Offer          (id, url?, raw_text, analysis: JSON, verdict, score, created_at)
 Application    (id, offer_fk, profile_version_fk, status, created_at, updated_at)
 GeneratedDoc   (id, application_fk, kind: cv|letter|letter_short,
                 content: JSON, pdf_path, template, created_at)
+Interview      (id, application_fk, kind: rh|technique|manager|culture, scheduled_at?,
+                context, prep: JSON, interviewers, questions_asked, notes,
+                feeling, next_steps, created_at, updated_at)
 Audit          (id, profile_version_fk, target_role?, created_at)
 Suggestion     (id, audit_fk, axis, severity, target_path, before, after,
                 explanation, state: pending|accepted|rejected|edited)
@@ -279,6 +298,9 @@ Job            (id, kind, status, payload, result, error, duration_ms, created_a
 | GET     | `/api/offers` / `/api/offers/{id}` | Liste / détail                                               |
 | POST    | `/api/offers/{id}/generate-cv`     | Job de génération du CV                                      |
 | POST    | `/api/offers/{id}/generate-letter` | Job de génération de la lettre (body : ton, longueur, focus) |
+| GET/POST | `/api/offers/{id}/interviews`     | Liste / création d'un entretien, puis job de préparation     |
+| GET/PATCH/DELETE | `/api/interviews/{id}`    | Détail / débrief / suppression                               |
+| POST    | `/api/interviews/{id}/prepare`     | Régénérer la fiche de préparation                            |
 | PUT     | `/api/docs/{id}`                   | Éditer le contenu, puis re-rendu du PDF                      |
 | GET     | `/api/docs/{id}/pdf`               | Télécharger le PDF                                           |
 | POST    | `/api/audits`                      | Lancer un audit (body : rôle cible optionnel)                |
@@ -295,7 +317,7 @@ Job            (id, kind, status, payload, result, error, duration_ms, created_a
 1. **Accueil** : un bouton « Nouvelle offre » et la liste des candidatures récentes, avec verdict et statut.
 2. **Profil** : un formulaire d'édition par section, les boutons « Importer un CV » et « Auditer », et l'historique des versions.
 3. **Nouvelle offre** : une zone de collage, puis l'analyse avec le score, les points forts, les écarts et le verdict (badge couleur).
-4. **Candidature** : deux onglets, CV et Lettre. Chacun propose l'édition à gauche, l'aperçu PDF à droite, et les boutons Télécharger / Copier le texte.
+4. **Candidature** : trois onglets, CV, Lettre et Entretiens. CV et Lettre proposent l'édition à gauche, l'aperçu PDF à droite, et les boutons Télécharger / Copier le texte. Entretiens affiche la fiche de préparation à gauche et le débrief à droite.
 5. **Audit** : les suggestions groupées par axe et triées par gravité, une vue diff et les boutons d'action. Les questions de complétion apparaissent en tête.
 
 ---
@@ -334,7 +356,6 @@ Job            (id, kind, status, payload, result, error, duration_ms, created_a
 
 - Kanban de suivi avec rappels de relance
 - Plusieurs templates de CV, en version FR et EN
-- Préparation d'entretien à partir de l'offre (questions probables, pitch)
 - Envoi d'e-mail de candidature (SMTP), avec relecture obligatoire
 - Extension navigateur pour capturer le texte d'une offre en un clic
 - Statistiques : taux de réponse par type d'offre et par verdict

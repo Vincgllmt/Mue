@@ -151,6 +151,18 @@ th.sortable:hover, th.sortable.active { color: var(--text); }
 /* --- Analyse et candidature --- */
 .analysis-head { display: flex; align-items: center; gap: 1rem; }
 .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+/* Entretiens */
+.interview { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.5rem; align-items: start; }
+.interview-debrief { position: sticky; top: 64px; }
+.interview-debrief h3, .interview-prep .card h3 { margin-top: 0; }
+.interview-prep section h3 { margin: 1.2rem 0 0.4rem; }
+.card-title { display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.card-title h3 { margin: 0; }
+.card-title button { margin-left: auto; }
+details.card.question { margin-bottom: 0.4rem; }
+.prose { white-space: pre-wrap; margin: 0.4rem 0; }
+mark { background: var(--orange-soft); color: var(--orange); border-radius: 3px; padding: 0 0.2rem; }
 ul.good li::marker { content: "✓  "; color: var(--green); }
 ul.bad li::marker { content: "✗  "; color: var(--red); }
 pre.raw { white-space: pre-wrap; font-family: inherit; font-size: 0.88rem; max-height: 300px; overflow: auto; background: var(--bg); padding: 0.8rem; border-radius: 6px; }
@@ -182,7 +194,8 @@ pre.raw { white-space: pre-wrap; font-family: inherit; font-size: 0.88rem; max-h
 .diff ins { background: var(--green-soft); color: var(--green); text-decoration: none; }
 
 @media (max-width: 1000px) {
-  .editor, .two-cols, .with-sidebar { grid-template-columns: 1fr; }
+  .editor, .two-cols, .with-sidebar, .interview { grid-template-columns: 1fr; }
+  .interview-debrief { position: static; }
   .editor-right { position: static; height: 80vh; }
   .sidebar { display: none; }
   .row { flex-direction: column; gap: 0; }

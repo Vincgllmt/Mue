@@ -11,7 +11,7 @@ from core import claude_client, github_repo
 from core.claude_client import ClaudeError
 from core.models import Profile
 
-from .fixtures import ANALYSIS, AUDIT, CV, LETTER, OFFER_TEXT, PROFILE, REVISION
+from .fixtures import ANALYSIS, AUDIT, CV, INTERVIEW_PREP, LETTER, OFFER_TEXT, PROFILE, REVISION
 
 pytestmark = pytest.mark.django_db
 
@@ -22,6 +22,7 @@ RESPONSES = {
     "audit_cv": AUDIT,
     "extract_profile": PROFILE,
     "revise_cv": REVISION,
+    "prepare_interview": INTERVIEW_PREP,
     "analyze_repo": {"nom": "Mue", "description": "Générateur de CV.", "realisations": ["Développé l'API"],
                      "stack": ["Python", "Django"], "url": "", "date": "2026"},
 }
@@ -44,6 +45,7 @@ def fake_claude(monkeypatch):
         "texte brut d'un CV": "extract_profile",
         "Tu révises un CV": "revise_cv",
         "à partir d'un dépôt GitHub": "analyze_repo",
+        "Tu prépares un candidat à un entretien": "prepare_interview",
     }
 
     def fake(prompt, timeout=None):
@@ -297,3 +299,47 @@ def test_import_rejects_other_formats(api):
 
     r = api.post("/api/profile/import", {"file": SimpleUploadedFile("cv.png", b"x")}, format="multipart")
     assert r.status_code == 400
+
+
+def test_interview_prep_and_debrief(api, with_profile, fake_claude, monkeypatch):
+    offer_id, _ = _create_offer(api)
+    url = f"/api/offers/{offer_id}/interviews"
+    assert api.post(url, {"kind": "inconnu"}, format="json").status_code == 400
+
+    r = api.post(url, {"kind": "rh", "scheduled_at": "2026-11-12T10:00:00+01:00", "context": "Visio 30 min"}, format="json")
+    assert r.status_code == 202, r.data
+    first = r.data["interview"]["id"]
+    assert api.get(f"/api/jobs/{r.data['job_id']}").data["status"] == "done"
+    interview = api.get(f"/api/interviews/{first}").data
+    assert interview["prep"]["questions"][1]["categorie"] == "ecart"
+    assert interview["job"]["status"] == "done"
+    # Un entretien fait passer la candidature au statut « entretien »
+    assert api.get(f"/api/offers/{offer_id}").data["application"]["status"] == "entretien"
+
+    # Débrief : seuls les champs éditables sont modifiés
+    r = api.patch(f"/api/interviews/{first}", {"feeling": "bien", "questions_asked": "Pourquoi Acme ?",
+                                               "next_steps": "Entretien technique", "prep": None}, format="json")
+    assert r.status_code == 200 and r.data["feeling"] == "bien" and r.data["prep"] is not None
+    assert api.patch(f"/api/interviews/{first}", {"feeling": "super"}, format="json").status_code == 400
+
+    # Le tour suivant reçoit le débrief du premier dans son prompt
+    prompts = []
+    original = claude_client.call_claude_cli
+    monkeypatch.setattr(claude_client, "call_claude_cli", lambda prompt, timeout=None: prompts.append(prompt) or original(prompt, timeout))
+    r = api.post(url, {"kind": "technique"}, format="json")
+    assert r.status_code == 202
+    assert "Pourquoi Acme ?" in prompts[0] and "Entretien technique" in prompts[0]
+    assert [i["kind"] for i in api.get(url).data] == ["technique", "rh"]
+
+    # Régénération puis suppression
+    r = api.post(f"/api/interviews/{first}/prepare", format="json")
+    assert r.status_code == 202 and api.get(f"/api/jobs/{r.data['job_id']}").data["status"] == "done"
+    assert api.delete(f"/api/interviews/{first}").status_code == 204
+    assert len(api.get(url).data) == 1
+
+
+def test_interview_requires_analysis(api, with_profile, fake_claude):
+    fake_claude["error"] = "Limite d'usage"
+    offer_id, _ = _create_offer(api)
+    r = api.post(f"/api/offers/{offer_id}/interviews", {"kind": "rh"}, format="json")
+    assert r.status_code == 409

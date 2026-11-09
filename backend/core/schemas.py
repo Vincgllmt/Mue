@@ -208,6 +208,27 @@ class RevisionResult(Schema):
     changements: list[str] = Field(default_factory=list, description="Une phrase par modification apportée")
 
 
+# --- F7. Préparation d'entretien -----------------------------------------------------------
+
+CategorieQuestion = Literal["parcours", "motivation", "technique", "comportementale", "ecart"]
+
+
+class QuestionEntretien(Schema):
+    categorie: CategorieQuestion
+    question: str
+    pourquoi: str = Field(default="", description="Ce que le recruteur cherche à vérifier")
+    piste_reponse: str = Field(description="Réponse construite uniquement à partir du profil (STAR si comportementale)")
+    appuis: list[str] = Field(default_factory=list, description="Éléments du profil mobilisés (expérience, projet…)")
+
+
+class InterviewPrep(Schema):
+    pitch: str = Field(description="Réponse à « Présentez-vous », environ 1 à 2 minutes à l'oral")
+    messages_cles: list[str] = Field(default_factory=list, description="3 à 5 idées à faire passer")
+    questions: list[QuestionEntretien] = Field(default_factory=list)
+    points_vigilance: list[str] = Field(default_factory=list, description="Écarts et comment les aborder honnêtement")
+    questions_a_poser: list[str] = Field(default_factory=list, description="Questions du candidat au recruteur")
+
+
 # Contenu stocké par type de GeneratedDoc
 DOC_SCHEMAS: dict[str, type[Schema]] = {
     "cv": CvDocument,
